@@ -9,6 +9,7 @@ class Barrel:
         self.x=0
         self.y=0
         self.targeted=False
+        self.matrix=[[0  for x in range(21)]  for y in range(23)]
 
 class Ship:
     listOfShip=[]
@@ -17,14 +18,89 @@ class Ship:
         self.y=0
         self.stock=0
         self.owner=0
+        self.matrix=[[0  for x in range(21)]  for y in range(23)]
+
+    def checkBestCoordinate(self,factor):
+        valMax=0
+        x=y=-1
+        if self.y>0:
+            print(str(self.y) + "// " + str(self.matrix[x][y-1]),file=sys.stderr)
+            if valMax<self.matrix[x][y-1]:
+                valMax=self.matrix[x][y-1]
+                x=self.x
+                y=self.y-1
+            if self.x>0:
+                if valMax<self.matrix[x-1][y-1]:
+                    valMax=self.matrix[x-1][y-1]
+                    x=self.x-1
+                    y=self.y-1
+            if self.x<22:
+                if valMax<self.matrix[x+1][y-1]:
+                    valMax=self.matrix[x+1][y-1]
+                    x=self.x+1
+                    y=self.y-1
+        if self.y<20:
+            if valMax<self.matrix[x][y+1]:
+                valMax=self.matrix[x][y+1]
+                x=self.x
+                y=self.y+1
+            if self.x>0:
+                if valMax<self.matrix[x-1][y+1]:
+                    valMax=self.matrix[x-1][y+1]
+                    x=self.x-1
+                    y=self.y+1
+            if self.x<22:
+                if valMax<self.matrix[x+1][y-1]:
+                    valMax=self.matrix[x+1][y+1]
+                    x=self.x+1
+                    y=self.y+1
+        if self.x>0:
+            if valMax<self.matrix[x-1][y]:
+                valMax=self.matrix[x-1][y]
+                x=self.x-1
+                y=self.y
+        if self.x<22:
+            if valMax<self.matrix[x+1][y]:
+                valMax=self.matrix[x+1][y]
+                x=self.x+1
+                y=self.y
+
+        return x,y
 
 class Mine:
     listOfMines=[]
     def __init__(self):
         self.x=0
         self.y=0
+        self.matrix=[[0  for x in range(21)]  for y in range(23)]
 
 # game loop
+def fillMatrix(matrix,value,x,y,factor):
+    #print("FilleMatrix" + str(x) + "//" + str(y) +"//" + str(value),file=sys.stderr)
+    if matrix[x][y]<value:
+        matrix[x][y]=value
+    dec,value=math.modf(value*factor)
+    value= int(value)
+    #print("modf " + str(value),file=sys.stderr)
+    if value>2:
+        if (x-1>=0):
+            fillMatrix(matrix,value,x-1,y,factor)
+        if ((x+1)<23):
+            fillMatrix(matrix,value,x+1,y,factor)
+        if (x-1>=0) and (y-1>=0):
+            fillMatrix(matrix,value,x-1,y-1,factor)
+        if (x-1>=0) and (y+1<21):
+            fillMatrix(matrix,value,x-1,y+1,factor)
+        if  (y+1<21):
+            fillMatrix(matrix,value,x,y+1,factor)
+        if  (y-1>=0):
+            fillMatrix(matrix,value,x,y-1,factor)
+        if (x+1<23) and (y-1>=0):
+            fillMatrix(matrix,value,x+1,y-1,factor)
+        if ((x+1)<23) and (y+1<21):
+            fillMatrix(matrix,value,x+1,y+1,factor)
+
+
 
 def calcDistance(a,b):
     aa=a.x-b.x
@@ -48,6 +124,13 @@ def lessDistance(ship):
         target.targeted=True
     return target
 
+def addMatrix(mat1,mat2,factor):
+    for i in range(23):
+        for j in range(21):
+            mat1[i][j]+=factor*mat2[i][j]
+
+    return mat1
+
 
 lastTurnShoot=0
 lastTurnMine=0
@@ -55,7 +138,7 @@ actualTurn=0
 
 while True:
     targetedShip=None
-    map=[[0  for x in range(23)]  for x in range(20)]
+    map=[[0  for x in range(23)]  for y in range(21)]
     for i in range(20):
         for j in range(23):
             map[i][j]=0
@@ -78,6 +161,8 @@ while True:
             temp.x=x
             temp.y=y
             Barrel.listOfBarrels.append(temp)
+            #print("Barre",file=sys.stderr)
+            fillMatrix(temp.matrix,100,x,y,0.3)
         elif entity_type =="SHIP":
             temp = Ship()
             temp.x = x
@@ -85,50 +170,22 @@ while True:
             temp.owner = arg_4
             temp.stock = arg_3
             Ship.listOfShip.append(temp)
+            #fillMatrix(temp.matrix,100,x,y,0.6)
         elif entity_type=="MINE":
             temp = Mine()
             temp.x=x
             temp.y=y
             Mine.listOfMines.append(temp)
+            #fillMatrix(temp.matrix,100,x,y,0.5)
 
 
-    i=0
+
     for s in Ship.listOfShip:
         if s.owner == 1 :
-            i+=1
-            if s.stock > 50 and i< math.floor(my_ship_count/2):
-                if targetedShip==None:
-                    diMin = 9999
-                    for ss in Ship.listOfShip:
-                        if ss.owner == 0:
-                            d = calcDistance(s,ss)
-                            if d < diMin:
-                                targetedShip = ss
-                if targetedShip!=None:
-                    if (lastTurnShoot+2) < actualTurn:
-                        print ("FIRE " + str(targetedShip.x) + " " + str(targetedShip.y))
-                        lastTurnShoot=actualTurn
-                    else:
-                        print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y))
-            else:
-                action=False
-                if (lastTurnShoot+2) < actualTurn:
-                    for ss in Ship.listOfShip:
-                        if ss.owner == 0:
-                            d = calcDistance(s,ss)
-                            if d <= 10:
-                                print("FIRE " + str(ss.x) + " " + str(ss.y))
-                                action=True
-                                lastTurnShoot = actualTurn
-                                break
-                if action==False:
-                    t = lessDistance(s)
-                    if t!=None:
-                        print ("MOVE " + str(t.x) + " " + str(t.y))
-                    else:
-                        for ss in Ship.listOfShip:
-                            if ss.owner==0:
-                                print("MOVE " + str(ss.x) + " " + str(ss.y))
+            for b in Barrel.listOfBarrels:
+                s.matrix=addMatrix(s.matrix,b.matrix,1)
+            x,y=s.checkBestCoordinate()
+            print("MOVE " + str(x) + " " + str(y))
+            print(s.matrix,file=sys.stderr)
 
-
-    actualTurn+=1
+    
