@@ -59,26 +59,25 @@ class Referee:
     MINES_ENABLED = True
 
     def __init__(self):
-        self.player=None
-        self.IA=None
+        self.players=None
         self.barrels = []
         self.mines = []
         self.ships=[]
+        self.cannonBallExplosions=[]
+        self.damage=[]
 
     def clamp(val,_min,_max):
         return max(_min,min(_max,val))
 
     def decrementRum(self):
-        for s in self.player.ships:
-            s.damage(1)
-        for s in self.IA.ships:
-            s.damage(1)
+        for p in self.players:
+            for s in p.ships:
+                s.damage(1)
 
     def updateInitialRum(self):
-        for s in self.player.ships:
-            s.initialHealth = s.health
-        for s in self.IA.ships:
-            s.initialHealth = s.health
+        for p in self.players:
+            for s in p.ships:
+                s.initialHealth = s.health
 
     def applyActions(self):
         for s in ships:
@@ -94,6 +93,178 @@ class Referee:
                     if s.speed > 0: s.speed-=1
                 elif self.action=="Port": s.orientation = (s.orientation +1)%6
                 elif self.action=="Starboard": s.orientation = (s.orientation +5)%6
+                elif self.action=="Mine":
+                    if ship.mineCooldown == 0:
+                        target = s.stern().neighbor((s.orientation+3)%6)
+                        if target.isInsideMap():
+                            s.mineCooldown = Referee.COOLDOWN_MINE
+                            mine = Mine(target.x,target.y)
+                            self.mines.append(mine)
+                elif self.action=="Fire":
+                    distance=s.bow().distanceTo(s.target)
+                    if s.target.isInsideMap() and distance <= Referee.FIRE_DISTANCE_MAX and s.cannonCooldown==0:
+                        travelTime= (1 + s.bow().distanceTo(s.target)//3)
+                        self.cannonballs.append(Cannonball(s.target.x,s.target.y,s.id,s.bow().x,s.bow().y,travelTime))
+                        s.cannonCooldown = Referee.COOLDOWN_CANNON
+
+    def checkCollisions(ship):
+        bow = ship.bow()
+        stern = ship.stern()
+        center = ship.position
+
+        newBarrel=[]
+        for b in self.barrels:
+            if b.position.equals(bow) or b.position.equals(stern) or b.position.equals(center):
+                ship.heal(b.health)
+            else:
+                newBarrel.append(b)
+        self.barrels = newBarrel
+
+        newMines=[]
+        for m in self.mines:
+            mineDamage = mine.explode(self.ships,false)
+
+            if mineDamage!=None:
+                for md in mineDamage:
+                    self.damage.append(md)
+            else:
+                newMines.append(m)
+        self.mines=newMines
+
+    def moveShips():
+        for i in range(1,2):
+            for s in self.ships:
+                s.newPosition = s.position
+                s.newBowCoordinate = s.bow()
+                s.newSternCoordinate = s.stern()
+
+                if i == s.speed:
+                    newCoordinate = s.position.neighbor(s.orientation)
+                    if newCoordinate.isInsideMap():
+                        s.newPosition = newCoordinate
+                        s.newBowCoordinate = newCoordinate.neighbor(s.orientation)
+                        s.newSternCoordinate = newCoordinate.neighbor((s.orientation + 3)%6)
+                    else:
+                        s.speed=0
+
+
+            collisions=[]
+            collisionDetected = True
+            while collisionDetected:
+                collisionDetected=False
+                for s in self.ships:
+                    if s.newBowIntersect(self.ships):
+                        collisions.append(s)
+                for s in collisions:
+                    s.newPosition = s.position
+                    s.newBowCoordinate = s.bow()
+                    s.newSternCoordinate = s.stern()
+                    s.speed=0
+                    collisionDetected = True
+
+                collisions=[]
+
+            for s in self.ships:
+                s.position=s.newPosition
+                self.checkCollisions(s)
+
+    def rotateShip(self):
+        for s in self.ships:
+            s.newPosition = s.position
+            s.newBowCoordinate = s.newBow()
+            s.newSternCoordinate = s.newStern()
+
+        collisionDetected = True
+        collisions = []
+
+        while collisionDetected:
+            collisionDetected = False
+            for s in self.ships:
+                if s.newPositionsIntersect(self.ships):
+                    collisions.append(s)
+
+            for s in collisions:
+                s.newOrientation = s.orientation
+                s.newBowCoordinate = s.newBow()
+                s.newSternCoordinate = s.newStern()
+                s.speed=0
+                collisionDetected=True
+
+            collisions=[]
+
+        for s in self.ships:
+            s.orientation = s.newOrientation
+            self.checkCollisions(s)
+
+    def gameIsOver(self):
+        for p in self.players:
+            if len(p.shipsAlive) == 0 : return True
+
+        return False
+
+    def explodeShips(self):
+        newCannon = []
+        for position in self.cannonBallExplosions:
+            toRemove=False
+            for s in self.ships:
+                if position.equals(s.bow()) or position.equals(s.stern()):
+                      self.damage.append(Damage(position,Referee.LOW_DAMAGE,true))
+                      s.damage(Referee.LOW_DAMAGE)
+                      toRemove=True
+                      break
+                elif position.equals(s.position):
+                    self.damage.append(Damage(position,Referee.HIGH_DAMAGE,true))
+                    s.damage(Referee.HIGH_DAMAGE)
+                    toRemove=True
+                    break
+            if toRemove==False:
+                newCannon.append(position)
+        self.cannonBallExplosions=newCannon
+
+    def explodeMines(self):
+        newCannon=[]
+        for position in self.cannonBallExplosions:
+            toRemove=False
+            for mine in self.mines:
+                if mine.position.equals(position):
+                    mineDamage = mine.explode(self.ships,true)
+                    for m in mineDamage:
+                        self.damage.append(m)
+                    toRemove = True
+                    break
+            if toRemove == False:
+                newCannon.append(position)
+        self.cannonBallExplosions=newCannon
+
+    def updateGame(round):
+        self.moveCannonballs()
+        self.decrementRum()
+        self.updateInitialRum()
+        self.applyActions()
+        self.moveShips()
+        self.rotateShip()
+        self.explodeShips()
+        self.explodeMines()
+        self.explodeBarrels()
+
+        newShip = []
+        for s in self.ships:
+            if s.health <=0:
+                reward = min(Referee.REWARD_RUM_BARREL_VALUE, s.initialHealth)
+                if reward>0:
+                    self.barrels.append(RumBarrel(s.position.x,s.position.y,reward))
+                self.players.get(s.owner).shipsAlive.remove(s)
+            else:
+                newShip.append(s)
+        self.ships=newShip
+
+        for position in self.cannonBallExplosions:
+            self.damage.append(Damage(position,0,false))
+
+        if gameIsOver()==True:
+            print ("END REACHED")
+
+
 
 
 
@@ -185,6 +356,44 @@ class RumBarrel( Entity):
     def __init__(self,x,y,health):
         self.health=health
         super().__init__("Barrel",x,y)
+
+class Mine(Entity):
+    def __init__(self,x,y):
+        super().__init__("Mine",x,y)
+
+    def explode(self,ships,force):
+        damage = []
+        victim = None
+
+        for s in ships:
+            if self.position.equals(s.bow()) or self.position.equals(s.stern()) or self.position.equals(s.position):
+                damage.append(Damage(self.position,Referee.MINE_DAMAGE,true))
+                s.damage(Referee.MINE_DAMAGE)
+                victim = s
+
+        if force or victim!=None:
+            if victim==None:
+                damage.append(Damage(self.position,Referee.MINE_DAMAGE,true))
+            for s in ships:
+                if s!=victim:
+                    impactPosition = None
+                    if s.stern().distanceTo(position) <=1: impactPosition=s.stern()
+                    if s.bow().distanceTo(position)<=1 : impactPosition=s.bow()
+                    if s.position.distanceTo(position) <= 1: impactPosition = s.position
+
+                    if impactPosition != None:
+                        s.damage(Referee.NEAR_MINE_DAMAGE)
+                        damage.append(Damage(impactPosition,Referee.NEAR_MINE_DAMAGE,true))
+
+        return damage
+
+class Cannonball(Entity):
+    def __init__(self,row,col,ownerId,srcX,srcY,remainingTurns):
+        self.ownerEntityId = ownerEntityId
+        self.srcX=srcX
+        self.srcY=srcY
+        this.initialRemainingTurns = self.remainingTurns = remainingTurns
+
 
 class Ship(Entity):
     def __init__(self,x,y,orientation,owner):
@@ -342,6 +551,15 @@ class Player:
             score+=ship.health
         return score
 
+
+class Damage:
+    def __init__(self,position,health,hit):
+        self.position = position
+        self.health = health
+        self.hit = hit
+
+
+
 ######################################################################
 ######################################################################
 ######################################################################
@@ -387,7 +605,7 @@ class ShipA:
         return xx,yy
 
 
-class Mine:
+class MineA:
     listOfMines=[]
     def __init__(self):
         self.x=0
@@ -424,7 +642,7 @@ lastTurnShoot=0
 lastTurnMine=0
 actualTurn=0
 Insult()
-
+Referee()
 while True:
     map=[[0  for x in range(23)]  for x in range(20)]
     for i in range(20):
@@ -470,10 +688,10 @@ while True:
             temp.orientation = arg_1
             temp.speed = arg_2
         elif entity_type=="MINE":
-            temp = Mine()
+            temp = MineA()
             temp.x=x
             temp.y=y
-            Mine.listOfMines.append(temp)
+            MineA.listOfMines.append(temp)
     i=0
     targetedShip=None
     for s in ShipA.listOfShip:
