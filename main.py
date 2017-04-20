@@ -59,12 +59,13 @@ class Referee:
     MINES_ENABLED = True
 
     def __init__(self):
-        self.players=None
+        self.players=[]
         self.barrels = []
         self.mines = []
         self.ships=[]
         self.cannonBallExplosions=[]
         self.damage=[]
+        self.cannonballs=[]
 
     def clamp(val,_min,_max):
         return max(_min,min(_max,val))
@@ -79,8 +80,19 @@ class Referee:
             for s in p.ships:
                 s.initialHealth = s.health
 
+    def moveCannonballs(self):
+        newCannon=[]
+        for c in self.cannonballs:
+            if c.remainingTurns>0:
+                c.remainingTurns-=1
+            if c.remainingTurns==0:
+                self.cannonBallExplosions.append(c.position)
+            else:
+                newCannon.append(c)
+        self.cannonballs=newCannon
+
     def applyActions(self):
-        for s in ships:
+        for s in self.ships:
             if s.mineCooldown > 0 : s.mineCooldown-=1
             if s.cannonCooldown > 0 : s.cannonCooldown-=1
 
@@ -131,7 +143,7 @@ class Referee:
                 newMines.append(m)
         self.mines=newMines
 
-    def moveShips():
+    def moveShips(self):
         for i in range(1,2):
             for s in self.ships:
                 s.newPosition = s.position
@@ -236,7 +248,23 @@ class Referee:
                 newCannon.append(position)
         self.cannonBallExplosions=newCannon
 
-    def updateGame(round):
+    def explodeBarrels(self):
+        newCannon=[]
+        for c in self.cannonBallExplosions:
+            newBarrel=[]
+            toRemove=False
+            for b in self.barrels:
+                if b.position.equals(c):
+                    self.damge.append(Damage(c,0,true))
+                    toRemove=True
+                else:
+                    newBarrel.append(b)
+            self.barrels=newBarrrel
+            if toRemove==False:
+                newCannon.append(c)
+        self.cannonBallExplosions=newCannon
+
+    def updateGame(self):
         self.moveCannonballs()
         self.decrementRum()
         self.updateInitialRum()
@@ -261,7 +289,7 @@ class Referee:
         for position in self.cannonBallExplosions:
             self.damage.append(Damage(position,0,false))
 
-        if gameIsOver()==True:
+        if self.gameIsOver()==True:
             print ("END REACHED")
 
 
@@ -521,15 +549,15 @@ class Ship(Entity):
 
             return self.newBowIntersect(other) or sternCollision or centerCollision
 
-    def damage(health):
+    def damage(self,health):
         self.health-=health
         if self.health<=0: self.health=0
 
-    def heal(health):
+    def heal(self,health):
         self.health+=health
         if self.health>Referee.MAX_SHIP_HEALTH: self.health=Referee.MAX_SHIP_HEALTH
 
-    def fire(x,y):
+    def fire(self,x,y):
         target = Coord(x,y)
         self.target = target
         self.action = "Fire"
@@ -563,93 +591,11 @@ class Damage:
 ######################################################################
 ######################################################################
 ######################################################################
-# Auto-generated code below aims at helping you parse
-# the standard input according to the problem statement.
-class Barrel:
-    listOfBarrels=[]
-    def __init__(self):
-        self.x=0
-        self.y=0
-        self.targeted=False
-
-class ShipA:
-    listOfShip=[]
-    def __init__(self):
-        self.stock=0
-        self.owner=0
-        self.orientation=0
-        self.speed=0
-        self.lastTurnShoot=0
-        self.id=0
-
-    def fireOn(self,tgt):
-        xx=tgt.x
-        yy=tgt.y
-        if tgt.orientation==1 and xx>1 and yy<20:
-            xx-=tgt.speed
-            yy+=tgt.speed
-        elif tgt.orientation==0 and xx<22:
-            xx+=tgt.speed
-        elif tgt.orientation==5 and xx<22 and yy<20:
-            xx+=tgt.speed
-            yy+=tgt.speed
-        elif tgt.orientation==4 and xx>1 and yy<20:
-            xx-=tgt.speed
-            yy+=tgt.speed
-        elif tgt.orientation==3 and xx>1:
-            xx-=tgt.speed
-        elif tgt.orientation==2 and xx>1 and yy>1:
-            xx-=tgt.speed
-            yy-=tgt.speed
-
-        return xx,yy
-
-
-class MineA:
-    listOfMines=[]
-    def __init__(self):
-        self.x=0
-        self.y=0
-
-# game loop
-
-def calcDistance(a,b):
-    aa=a.x-b.x
-    aa*=aa
-    bb=a.y-b.y
-    bb*=bb
-    distance = math.sqrt(aa+bb)
-    return distance
-
-
-
-def lessDistance(ship):
-    minDistance=9999
-    target=None
-    for b in Barrel.listOfBarrels:
-        d = calcDistance(b,ship)
-        if d < minDistance and b.targeted == False:
-            minDistance = d
-            target = b
-
-    if target!=None:
-        target.targeted=True
-    return target
-
-
-
-lastTurnShoot=0
-lastTurnMine=0
-actualTurn=0
 Insult()
-Referee()
-while True:
-    map=[[0  for x in range(23)]  for x in range(20)]
-    for i in range(20):
-        for j in range(23):
-            map[i][j]=0
 
-    Barrel.listOfBarrels=[]
+while True:
+
+    mainReferee = Referee()
     #Ship.listOfShip = []
     my_ship_count = int(input())  # the number of remaining ships
     entity_count = int(input())  # the number of entities (e.g. ships, mines or cannonballs)
@@ -663,89 +609,31 @@ while True:
         arg_3 = int(arg_3)
         arg_4 = int(arg_4)
         if entity_type == "BARREL":
-            temp = Barrel()
-            temp.x=x
-            temp.y=y
-            Barrel.listOfBarrels.append(temp)
+            temp = RumBarrel(x,y,arg_1)
+            mainReferee.barrels.append(temp)
+        elif entity_type == "CANNONBALL":
+            temp = Cannonball(x,y,arg_1,0,0,arg_2)
+            mainReferee.cannonballs.append(temp)
         elif entity_type =="SHIP":
-            temp=None
-            for s in ShipA.listOfShip:
-                if s.id == entity_id:
-                    temp=s
-                    break
-
-            if temp==None:
-                temp = ShipA()
-                ShipA.listOfShip.append(temp)
-            else:
-                print("FOUND SHIP",file=sys.stderr)
-
-            temp.id = entity_id
-            temp.x = x
-            temp.stock = arg_3
-            temp.y = y
-            temp.owner = arg_4
-            temp.orientation = arg_1
-            temp.speed = arg_2
+            player = None
+            for p in mainReferee.players:
+                if p.id == arg_4:
+                    player = p
+            if player == None:
+                player = Player(arg_4)
+                mainReferee.players.append(player)
+            ship =  Ship(x,y,arg_1,arg_4)
+            ship.health=arg_3
+            ship.speed = arg_2
+            player.ships.append(ship)
         elif entity_type=="MINE":
-            temp = MineA()
-            temp.x=x
-            temp.y=y
-            MineA.listOfMines.append(temp)
-    i=0
-    targetedShip=None
-    for s in ShipA.listOfShip:
-        targetedShip=None
-        if s.owner == 1 :
-            insult = Insult.instance.getInsult()
-            i+=1
-            if s.stock > 40 and my_ship_count>1 :#and i< math.floor(my_ship_count/2):
-                if targetedShip==None:
-                    diMin = 9999
-                    for ss in ShipA.listOfShip:
-                        if ss.owner == 0 and ss.stock>0:
-                            d = calcDistance(s,ss)
-                            if d < diMin:
-                                targetedShip = ss
-                if targetedShip!=None:
-                    distance = calcDistance(s,targetedShip)
-                    if distance <=6 and ((s.lastTurnShoot+2) < actualTurn):
-                        xx,yy = s.fireOn(targetedShip)
-                        print("FIRE " + str(xx) + " " + str(yy)  + insult)
-                        s.lastTurnShoot=actualTurn
-                    elif distance <=2:
-                        t = lessDistance(s)
-                        if t!=None:
-                            print ("MOVE " + str(t.x) + " " + str(t.y)  + insult)
-                        else:
-                            print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
-                    else:
-                        print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
-            else:
-                action=False
-                print ("#######" + str(s.lastTurnShoot),file=sys.stderr)
-                if (s.lastTurnShoot+1) < actualTurn:
-                    for ss in ShipA.listOfShip:
-                        if ss.owner == 0 and ss.stock>0:
-                            d = calcDistance(s,ss)
-                            if d <= 6:
-                                xx,yy = s.fireOn(ss)
-                                print("FIRE " + str(xx) + " " + str(yy)  + insult)
-                                action=True
-                                s.lastTurnShoot = actualTurn
-                                break
-                if action==False:
-                    t = lessDistance(s)
-                    if t!=None:
-                        print ("MOVE " + str(t.x) + " " + str(t.y)  + insult)
-                    else:
-                        for ss in ShipA.listOfShip:
-                            if ss.owner==0:
-                                print("MOVE " + str(ss.x) + " " + str(ss.y)  + insult)
+            temp=Mine(x,y)
+            mainReferee.mines.append(temp)
 
-        # Write an action using print
-        # To debug: print("Debug messages...", file=sys.stderr)
+    for p in mainReferee.players:
+        for s in p.ships:
+            mainReferee.updateGame()
 
-        # Any valid action, such as "WAIT" or "MOVE x y"
-        #print("MOVE 11 10")
+            print("WAIT")
+
     actualTurn+=1
