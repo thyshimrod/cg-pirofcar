@@ -1,5 +1,6 @@
 import sys
 import math
+import time
 from random import randint
 
 class Insult:
@@ -66,6 +67,31 @@ class Referee:
         self.cannonBallExplosions=[]
         self.damage=[]
         self.cannonballs=[]
+
+    def getScore(self):
+        score = 0
+        for p in self.players:
+            for s in p.ships:
+                #print ("HEALTH " + str(s.health),file=sys.stderr)
+                if p.id == 1:
+                    score==s.health + s.speed
+                else:
+                    score=s.health - s.speed
+        return score
+
+    def clone(self):
+        cloneReferee = Referee()
+        for p in self.players:
+            cloneReferee.players.append(p.clone())
+        for b in self.barrels:
+            cloneReferee.barrels.append(b.clone())
+        for m in self.mines:
+            cloneReferee.mines.append(m.clone())
+        for c in self.cannonballs:
+            cloneReferee.cannonballs.append(c.clone())
+
+        return cloneReferee
+
 
     def clamp(val,_min,_max):
         return max(_min,min(_max,val))
@@ -134,7 +160,7 @@ class Referee:
 
         newMines=[]
         for m in self.mines:
-            mineDamage = mine.explode(self.ships,false)
+            mineDamage = mine.explode(self.ships,False)
 
             if mineDamage!=None:
                 for md in mineDamage:
@@ -220,12 +246,12 @@ class Referee:
             toRemove=False
             for s in self.ships:
                 if position.equals(s.bow()) or position.equals(s.stern()):
-                      self.damage.append(Damage(position,Referee.LOW_DAMAGE,true))
+                      self.damage.append(Damage(position,Referee.LOW_DAMAGE,True))
                       s.damage(Referee.LOW_DAMAGE)
                       toRemove=True
                       break
                 elif position.equals(s.position):
-                    self.damage.append(Damage(position,Referee.HIGH_DAMAGE,true))
+                    self.damage.append(Damage(position,Referee.HIGH_DAMAGE,True))
                     s.damage(Referee.HIGH_DAMAGE)
                     toRemove=True
                     break
@@ -239,7 +265,7 @@ class Referee:
             toRemove=False
             for mine in self.mines:
                 if mine.position.equals(position):
-                    mineDamage = mine.explode(self.ships,true)
+                    mineDamage = mine.explode(self.ships,True)
                     for m in mineDamage:
                         self.damage.append(m)
                     toRemove = True
@@ -255,11 +281,11 @@ class Referee:
             toRemove=False
             for b in self.barrels:
                 if b.position.equals(c):
-                    self.damge.append(Damage(c,0,true))
+                    self.damage.append(Damage(c,0,True))
                     toRemove=True
                 else:
                     newBarrel.append(b)
-            self.barrels=newBarrrel
+            self.barrels=newBarrel
             if toRemove==False:
                 newCannon.append(c)
         self.cannonBallExplosions=newCannon
@@ -287,10 +313,10 @@ class Referee:
         self.ships=newShip
 
         for position in self.cannonBallExplosions:
-            self.damage.append(Damage(position,0,false))
+            self.damage.append(Damage(position,0,False))
 
-        if self.gameIsOver()==True:
-            print ("END REACHED")
+        #if self.gameIsOver()==True:
+        #    print ("END REACHED",file=sys.stderr)
 
 
 
@@ -385,9 +411,16 @@ class RumBarrel( Entity):
         self.health=health
         super().__init__("Barrel",x,y)
 
+    def clone(self):
+        return RumBarrel(self.position.x,self.position.y,self.health)
+
 class Mine(Entity):
     def __init__(self,x,y):
         super().__init__("Mine",x,y)
+
+    def clone(self):
+        return Mine(self.position.x,self.position.y)
+
 
     def explode(self,ships,force):
         damage = []
@@ -395,13 +428,13 @@ class Mine(Entity):
 
         for s in ships:
             if self.position.equals(s.bow()) or self.position.equals(s.stern()) or self.position.equals(s.position):
-                damage.append(Damage(self.position,Referee.MINE_DAMAGE,true))
+                damage.append(Damage(self.position,Referee.MINE_DAMAGE,True))
                 s.damage(Referee.MINE_DAMAGE)
                 victim = s
 
         if force or victim!=None:
             if victim==None:
-                damage.append(Damage(self.position,Referee.MINE_DAMAGE,true))
+                damage.append(Damage(self.position,Referee.MINE_DAMAGE,True))
             for s in ships:
                 if s!=victim:
                     impactPosition = None
@@ -411,16 +444,20 @@ class Mine(Entity):
 
                     if impactPosition != None:
                         s.damage(Referee.NEAR_MINE_DAMAGE)
-                        damage.append(Damage(impactPosition,Referee.NEAR_MINE_DAMAGE,true))
+                        damage.append(Damage(impactPosition,Referee.NEAR_MINE_DAMAGE,True))
 
         return damage
 
 class Cannonball(Entity):
     def __init__(self,row,col,ownerId,srcX,srcY,remainingTurns):
-        self.ownerEntityId = ownerEntityId
+        self.ownerEntityId = ownerId
         self.srcX=srcX
         self.srcY=srcY
-        this.initialRemainingTurns = self.remainingTurns = remainingTurns
+        self.initialRemainingTurns = self.remainingTurns = remainingTurns
+        super().__init__("CannonBall",row,col)
+
+    def clone(self):
+        return Cannonball(self.position.x,self.position.y,self.ownerEntityId,0,0,self.remainingTurns)
 
 
 class Ship(Entity):
@@ -436,6 +473,16 @@ class Ship(Entity):
         self.initialHealth=0
         self.health=Referee.INITIAL_SHIP_HEALTH
         super().__init__("Ship",x,y)
+
+    def clone(self):
+        cloneShip = Ship(self.position.x,self.position.y,self.orientation,self.owner)
+        cloneShip.speed = self.speed
+        cloneShip.action = self.action
+        cloneShip.initialHealth = self.initialHealth
+        cloneShip.health = self.health
+        cloneShip.id = self.id
+        return cloneShip
+
 
     def moveTo(self,x,y):
         currentPosition = self.position
@@ -532,8 +579,8 @@ class Ship(Entity):
         if type(other) is list:
             for s in other:
                 if self != s and self.newBowIntersect(s):
-                    return true
-            return false
+                    return True
+            return False
         else:
             return self.newBowCoordinate != None and (self.newBowCoordinate.equals(other.newBowCoordinate) or newBowCoordinate.equals(other.newPosition) or self.newBowCoordinate.equals(other.newSternCoordinate))
 
@@ -541,8 +588,8 @@ class Ship(Entity):
         if type(other) is list:
             for o in other:
                 if self != o and self.newPositionsIntersect(o):
-                    return true
-            return false
+                    return True
+            return False
         else:
             sternCollision = self.newSternCoordinate != None and (self.newSternCoordinate.equals(other.newBowCoordinate) or self.newSternCoordinate.equals(other.newPosition) or self.newSternCoordinate.equals(other.newSternCoordinate))
             centerCollision = self.newPosition != None and (self.newPosition.equals(other.newBowCoordinate))
@@ -579,6 +626,12 @@ class Player:
             score+=ship.health
         return score
 
+    def clone(self):
+        clonePlayer = Player(self.id)
+        for s in self.ships:
+            cloneShip=s.clone()
+            clonePlayer.ships.append(cloneShip)
+        return clonePlayer
 
 class Damage:
     def __init__(self,position,health,hit):
@@ -592,9 +645,9 @@ class Damage:
 ######################################################################
 ######################################################################
 Insult()
-
+act=['Wait','Slower','Faster','Port','Starboard']
 while True:
-
+    ticks= time.time()
     mainReferee = Referee()
     #Ship.listOfShip = []
     my_ship_count = int(input())  # the number of remaining ships
@@ -625,15 +678,74 @@ while True:
             ship =  Ship(x,y,arg_1,arg_4)
             ship.health=arg_3
             ship.speed = arg_2
+            ship.id = entity_id
             player.ships.append(ship)
+            player.shipsAlive.append(ship)
         elif entity_type=="MINE":
             temp=Mine(x,y)
             mainReferee.mines.append(temp)
-
+    valTicks = 0.0075/my_ship_count
     for p in mainReferee.players:
-        for s in p.ships:
-            mainReferee.updateGame()
+        if p.id == 1:
+            actualShipTick= time.time()
+            for s in p.ships:
+                simulateReferee=mainReferee.clone()
+                goOn=True
+                actions={}
+                if s.speed ==2:
+                    actions["Slower"] = 0
+                elif s.speed==1:
+                    actions["Slower"] = 0
+                    actions["Faster"] = 0
+                else:
+                    actions["Faster"] = 0
+                actions["Port"]=0
+                actions["Starboard"]=0
+                actions["Wait"]=0
 
-            print("WAIT")
+                i=0
+                while goOn:
+                    lastSimulationTicks=time.time()
+                    for pl in simulateReferee.players:
+                        for sh in pl.ships:
+                            #print (str(sh.id) + "//" + str(s.id),file=sys.stderr)
+                            if sh.id == s.id:
+                                #print ("ID + ID ",file=sys.stderr)
+                                sh.actions=act[i]
+                            else:
+                                sh.actions=act[randint(0,len(act)-1)]
+                    simulateReferee.updateGame()
+                    for turn in range(6):
+                        for pl in simulateReferee.players:
+                            for sh in p.ships:
+                                sh.actions=act[randint(0,len(act)-1)]
+                        simulateReferee.updateGame()
+                        #print("SIIII " + str(simulateReferee.getScore()),file=sys.stderr)
+                    lastSimulationTicks=time.time()-lastSimulationTicks
+                    consumedTick=time.time()-actualShipTick+lastSimulationTicks
 
-    actualTurn+=1
+                    if (consumedTick>valTicks):
+                        goOn=False
+                    #print("consumed " + str(consumedTick) + "//" + str(valTicks) + "/" + str(goOn),file=sys.stderr)
+                    #if actions[act[i]]==0:
+                    #    actions[act[i]]=simulateReferee.getScore()
+                    #else:
+                    #    actions[act[i]]=(actions[act[i]]+simulateReferee.getScore())//2
+                    actions[act[i]]=simulateReferee.getScore()
+                    i+=1
+                    i%=len(act)
+                    if act[i] not in actions:
+                        i+=1
+                        i%=len(act)
+
+                del simulateReferee
+                actionToDo="WAIT"
+                scoreToDo=0
+                print(actions,file=sys.stderr)
+                for a in actions:
+                    if actions[a]>scoreToDo:
+                        scoreToDo=actions[a]
+                        actionToDo=a.upper()
+                print(actionToDo)
+
+        lastTicks=time.time()
