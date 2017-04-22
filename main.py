@@ -342,7 +342,7 @@ class CubeCoordinate:
         return CubeCoordinate(nx,ny,nz)
 
     def distanceTo(self,dst):
-        return ((abs(x - dst.x) + abs(y-dst.y) + abs(z-dst.z))//2)
+        return ((abs(self.x - dst.x) + abs(self.y-dst.y) + abs(self.z-dst.z))//2)
 
 
 
@@ -392,7 +392,7 @@ class Coord:
     def isInsideMap(self):
         return ((self.x >= 0) and (self.x < Coord.MAP_WIDTH) and self.y>=0 and self.y < Coord.MAP_HEIGHT)
 
-    def distanceTo(dst):
+    def distanceTo(self,dst):
         return self.toCubeCoordinate().distanceTo(dst.toCubeCoordinate())
 
 ########################### Entity #####################################
@@ -451,7 +451,25 @@ class Cannonball(Entity):
         self.srcX=srcX
         self.srcY=srcY
         self.initialRemainingTurns = self.remainingTurns = remainingTurns
+        self.orientation=-1
         super().__init__("CannonBall",row,col)
+
+
+    def defineOrientation(self,x,y):
+        xx = self.position.x - x
+        yy = self.position.y - y
+
+        print ("defineOrientation " + str(xx) + "//" + str(yy),file=sys.stderr)
+        if yy == 0:
+            if xx<0: self.orientation = 3
+            if xx>0: self.orientation = 0
+        elif yy>0:
+            if xx<0: self.orientation = 4
+            if xx>0: self.orientation = 5
+        elif yy<0:
+            if xx<0: self.orientation = 2
+            if xx>0: self.orientation = 1
+
 
     def clone(self):
         return Cannonball(self.position.x,self.position.y,self.ownerEntityId,0,0,self.remainingTurns)
@@ -656,30 +674,45 @@ class Barrel:
 
 
 def fireOn(tgt,dist):
-    temps = math.floor(1 + dist/3)
-    tgtBow=tgt.bow()
-    print("FIREON " + str(tgt.position.x) +"@" + str(tgt.position.y) + "/" + str(tgtBow.x) +"@" + str(tgtBow.y) + "/" + str(tgt.orientation) + "S" + str(tgt.speed),file=sys.stderr)
+    if True:
+        temps = math.floor(1 + dist/3)
+        tgtBow=tgt.bow()
+        print("FIREON " + str(tgt.position.x) +"@" + str(tgt.position.y) + "/" + str(tgtBow.x) +"@" + str(tgtBow.y) + "/" + str(tgt.orientation) + "S" + str(tgt.speed),file=sys.stderr)
 
-    xx=tgt.x
-    yy=tgt.y
-    factor=math.floor(tgt.speed*temps)
-    if tgt.orientation==1 and xx>1 and yy<20:
-        xx-=factor
-        yy+=factor
-    elif tgt.orientation==0 and xx<22:
-        xx+=factor
-    elif tgt.orientation==5 and xx<22 and yy<20:
-        xx+=factor
-        yy+=factor
-    elif tgt.orientation==4 and xx>1 and yy<20:
-        xx-=factor
-        yy+=factor
-    elif tgt.orientation==3 and xx>1:
-        xx-=factor
-    elif tgt.orientation==2 and xx>1 and yy>1:
-        xx-=factor
-        yy-=factor
-    print ("FireON " + str(xx) + "//" + str(yy),file=sys.stderr)
+        xx=tgt.x
+        yy=tgt.y
+        factor=math.floor(tgt.speed*temps)
+        if tgt.orientation==1 and xx>1 and yy<20:
+            xx-=factor
+            yy+=factor
+        elif tgt.orientation==0 and xx<22:
+            xx+=factor
+        elif tgt.orientation==5 and xx<22 and yy<20:
+            xx+=factor
+            yy+=factor
+        elif tgt.orientation==4 and xx>1 and yy<20:
+            xx-=factor
+            yy+=factor
+        elif tgt.orientation==3 and xx>1:
+            xx-=factor
+        elif tgt.orientation==2 and xx>1 and yy>1:
+            xx-=factor
+            yy-=factor
+        print ("FireON " + str(xx) + "//" + str(yy),file=sys.stderr)
+
+    else:
+        if tgt.speed==0:
+            xx=tgt.x
+            yy=tgt.y
+        elif tgt.speed==1:
+            bo=tgt.bow()
+            xx=bo.x
+            yy=bo.y
+        else:
+            bo=tgt.bow().neighbor(tgt.orientation)
+            xx=bo.x
+            yy=bo.y
+
     return xx,yy
 
 
@@ -722,6 +755,7 @@ lastTurnMine=0
 actualTurn=0
 Insult()
 listOfShip=[]
+listOfCannonBalls=[]
 while True:
     map=[[0  for x in range(23)]  for x in range(20)]
     for i in range(20):
@@ -729,6 +763,7 @@ while True:
             map[i][j]=0
     mainReferee = Referee()
     ships=[]
+    cannonBalls=[]
     Barrel.listOfBarrels=[]
     #Ship.listOfShip = []
     my_ship_count = int(input())  # the number of remaining ships
@@ -771,8 +806,12 @@ while True:
             temp.y=y
             Mine.listOfMines.append(temp)
         elif entity_type == "CANNONBALL":
+
             temp = Cannonball(x,y,arg_1,0,0,arg_2)
+            temp.id=entity_id
             mainReferee.cannonballs.append(temp)
+
+
     listOfShip=ships
     i=0
     targetedShip=None
@@ -788,37 +827,71 @@ while True:
                     action=True
                     print("PORT")
                     break
+            for c in mainReferee.cannonballs:
+                if  c.remainingTurns<=2:
+                    if c.remainingTurns == 1:
+                        sbowPos = s.bow()
+                        if c.position.equals(sbowPos):
+                            print("FASTER")
+                            action=True
+                            break
+                    elif c.remainingTurns == 2:
+                        sbowPos = s.bow().neighbor(s.orientation)
+                        if c.position.equals(sbowPos):
+                            print("PORT")
+                            action=True
+                            break
 
             if action==False and s.health > 30 and my_ship_count>1 :#and i< math.floor(my_ship_count/2):
                 if targetedShip==None:
                     diMin = 9999
                     for ss in listOfShip:
                         if ss.owner == 0 and ss.health>0:
-                            d = calcDistance(s,ss)
+                            #d = calcDistance(s,ss)
+                            d = s.position.distanceTo(ss.position)
                             if d < diMin:
                                 targetedShip = ss
                 if targetedShip!=None:
-                    distance = calcDistance(s,targetedShip)
+                    #distance = calcDistance(s,targetedShip)
+                    distance = s.position.distanceTo(targetedShip.position)
                     print("distance " + str(distance),file=sys.stderr)
                     if distance <=7 and ((s.lastTurnShoot+2) < actualTurn):
                         xx,yy = fireOn(targetedShip,distance)
                         print("FIRE " + str(xx) + " " + str(yy)  + insult)
                         s.lastTurnShoot=actualTurn
                     elif distance <=2:
-                        print("STARBOARD")
+                        bobo=targetedShip.bow().neighbor(targetedShip.orientation)
+                        if bobo.equals(s.stern()):
+                            print("MINE")
+                        else:
+                            print("STARBOARD")
                     else:
                         t,dist = lessDistance(s)
                         if dist<=2:
                             print ("MOVE " + str(t.x) + " " + str(t.y)  + insult)
                         else:
-                            print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
+                            shortTgt=None
+                            for ss in listOfShip:
+                                if ss.owner == 0 and ss.health>0:
+                                    #d = calcDistance(s,ss)
+                                    d = s.position.distanceTo(ss.position)
+                                    if d < 6:
+                                        shortTgt = ss
+                                        break
+                            if shortTgt!=None and ((s.lastTurnShoot+2) < actualTurn):
+                                xx,yy = fireOn(shortTgt,distance)
+                                print("FIRE " + str(xx) + " " + str(yy)  + insult)
+                                s.lastTurnShoot=actualTurn
+                            else:
+                                print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
 
             else:
 
                 if (s.lastTurnShoot+1) < actualTurn:
                     for ss in listOfShip:
                         if ss.owner == 0 and ss.health>0:
-                            d = calcDistance(s,ss)
+                            #d = calcDistance(s,ss)
+                            d = s.position.distanceTo(ss.position)
                             if d <= 6:
                                 xx,yy = fireOn(ss,d)
                                 print("FIRE " + str(xx) + " " + str(yy)  + insult)
