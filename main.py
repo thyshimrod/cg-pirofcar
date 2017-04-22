@@ -674,7 +674,7 @@ class Barrel:
 
 
 def fireOn(tgt,dist):
-    if True:
+    if dist>4:
         temps = math.floor(1 + dist/3)
         tgtBow=tgt.bow()
         print("FIREON " + str(tgt.position.x) +"@" + str(tgt.position.y) + "/" + str(tgtBow.x) +"@" + str(tgtBow.y) + "/" + str(tgt.orientation) + "S" + str(tgt.speed),file=sys.stderr)
@@ -838,7 +838,7 @@ while True:
                     elif c.remainingTurns == 2:
                         sbowPos = s.bow().neighbor(s.orientation)
                         if c.position.equals(sbowPos):
-                            print("PORT")
+                            print("FASTER")
                             action=True
                             break
 
@@ -847,21 +847,22 @@ while True:
                     diMin = 9999
                     for ss in listOfShip:
                         if ss.owner == 0 and ss.health>0:
-                            #d = calcDistance(s,ss)
-                            d = s.position.distanceTo(ss.position)
+                            d = calcDistance(s,ss)
+                            #d = s.position.distanceTo(ss.position)
                             if d < diMin:
                                 targetedShip = ss
                 if targetedShip!=None:
-                    #distance = calcDistance(s,targetedShip)
-                    distance = s.position.distanceTo(targetedShip.position)
+                    distance = calcDistance(s,targetedShip)
+                    #distance = s.position.distanceTo(targetedShip.position)
                     print("distance " + str(distance),file=sys.stderr)
                     if distance <=7 and ((s.lastTurnShoot+2) < actualTurn):
                         xx,yy = fireOn(targetedShip,distance)
                         print("FIRE " + str(xx) + " " + str(yy)  + insult)
                         s.lastTurnShoot=actualTurn
                     elif distance <=2:
-                        bobo=targetedShip.bow().neighbor(targetedShip.orientation)
-                        if bobo.equals(s.stern()):
+                        orient = (s.orientation+3)%6
+                        bobow=targetedShip.bow().neighbor(targetedShip.orientation)
+                        if bobow.equals(s.stern()):
                             print("MINE")
                         else:
                             print("STARBOARD")
@@ -870,28 +871,15 @@ while True:
                         if dist<=2:
                             print ("MOVE " + str(t.x) + " " + str(t.y)  + insult)
                         else:
-                            shortTgt=None
-                            for ss in listOfShip:
-                                if ss.owner == 0 and ss.health>0:
-                                    #d = calcDistance(s,ss)
-                                    d = s.position.distanceTo(ss.position)
-                                    if d < 6:
-                                        shortTgt = ss
-                                        break
-                            if shortTgt!=None and ((s.lastTurnShoot+2) < actualTurn):
-                                xx,yy = fireOn(shortTgt,distance)
-                                print("FIRE " + str(xx) + " " + str(yy)  + insult)
-                                s.lastTurnShoot=actualTurn
-                            else:
-                                print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
+                            print("MOVE " + str(targetedShip.x) + " " + str(targetedShip.y)  + insult)
 
             else:
 
                 if (s.lastTurnShoot+1) < actualTurn:
                     for ss in listOfShip:
                         if ss.owner == 0 and ss.health>0:
-                            #d = calcDistance(s,ss)
-                            d = s.position.distanceTo(ss.position)
+                            d = calcDistance(s,ss)
+                            #d = s.position.distanceTo(ss.position)
                             if d <= 6:
                                 xx,yy = fireOn(ss,d)
                                 print("FIRE " + str(xx) + " " + str(yy)  + insult)
