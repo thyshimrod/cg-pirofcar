@@ -880,7 +880,7 @@ while True:
                         if ss.owner == 0 and ss.health>0:
                             d = calcDistance(s,ss)
                             #d = s.position.distanceTo(ss.position)
-                            if d <= 6:
+                            if d <= 5:
                                 xx,yy = fireOn(ss,d)
                                 print("FIRE " + str(xx) + " " + str(yy)  + insult)
                                 action=True
