@@ -842,7 +842,7 @@ while True:
                             action=True
                             break
 
-            if action==False and s.health > 30 and my_ship_count>1 :#and i< math.floor(my_ship_count/2):
+            if action==False and s.health > 30 and my_ship_count>3 :#and i< math.floor(my_ship_count/2):
                 if targetedShip==None:
                     diMin = 9999
                     for ss in listOfShip:
@@ -886,6 +886,12 @@ while True:
                                 action=True
                                 s.lastTurnShoot = actualTurn
                                 break
+                            elif d <=2:
+                                bobow=targetedShip.bow().neighbor(targetedShip.orientation)
+                                if bobow.equals(s.stern()):
+                                    print("MINE")
+                                    action=True
+                                    break
                 if action==False:
                     t, dist = lessDistance(s)
                     if t!=None:
